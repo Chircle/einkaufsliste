@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Einkaufsliste</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#FF7F93">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Einkaufsliste">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #FFF4D6;
+    --card: #FFFFFF;
+    --ink: #4B3550;
+    --pink: #FF7F93;
+    --pink-dark: #E85C77;
+    --mint: #7BD8C0;
+    --mint-dark: #4FBBA0;
+    --muted: #B8A6C4;
+    --line: #F3E7B3;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    min-height:100vh;
+    background: var(--bg);
+    background-image:
+      radial-gradient(circle at 12% 18%, rgba(255,127,147,0.10) 0, transparent 40%),
+      radial-gradient(circle at 88% 82%, rgba(123,216,192,0.14) 0, transparent 42%);
+    font-family: 'Nunito', sans-serif;
+    color: var(--ink);
+    display:flex;
+    align-items:flex-start;
+    justify-content:center;
+    padding: 40px 16px 60px;
+  }
+  .app{ width:100%; max-width: 460px; }
+  .hero{ text-align:center; margin-bottom: 18px; }
+  .hero svg{ width:64px; height:64px; }
+  h1{
+    font-family:'Baloo 2', sans-serif;
+    font-weight:700;
+    font-size: 28px;
+    margin: 8px 0 2px;
+    letter-spacing: -0.01em;
+  }
+  .sub{ font-size: 14px; color: #8C7B98; margin:0; }
+  .card{
+    background: var(--card);
+    border-radius: 28px;
+    padding: 22px 20px 16px;
+    box-shadow: 0 18px 40px -20px rgba(75,53,80,0.35), 0 2px 0 rgba(75,53,80,0.03);
+    position:relative;
+    overflow:hidden;
+  }
+  .add-row{ display:flex; gap:10px; }
+  .add-row input{
+    flex:1;
+    border: 2px solid var(--line);
+    background: #FFFDF6;
+    border-radius: 16px;
+    padding: 12px 14px;
+    font-family:'Nunito', sans-serif;
+    font-size: 15px;
+    color: var(--ink);
+    outline:none;
+    transition: border-color .15s ease;
+    min-width:0;
+  }
+  .add-row input::placeholder{ color:#C7B9D1; }
+  .add-row input:focus{ border-color: var(--pink); }
+  .add-btn{
+    width:44px; height:44px; flex:0 0 auto;
+    border:none;
+    border-radius: 14px;
+    background: var(--mint);
+    color:#fff;
+    font-size: 22px;
+    line-height:1;
+    cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow: 0 6px 14px -6px rgba(79,187,160,0.7);
+    transition: transform .12s ease, background .15s ease;
+  }
+  .add-btn:hover{ background: var(--mint-dark); }
+  .add-btn:active{ transform: scale(0.88); }
+
+  .paste-hint{
+    display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+    font-size:12.5px; color:#B8A6C4; margin: 9px 2px 14px;
+  }
+  .link-btn{
+    border:none; background:none; color: var(--pink-dark);
+    font-weight:700; font-size:12.5px; cursor:pointer; padding:0;
+    text-decoration: underline; text-decoration-style: wavy; text-decoration-color: #F6C6CE;
+  }
+
+  .panel{ display:none; margin: 4px 2px 16px; }
+  .panel.open{ display:block; }
+  .panel textarea, .panel input[type="text"]{
+    width:100%;
+    border: 2px dashed var(--line);
+    background: #FFFDF6;
+    border-radius: 16px;
+    padding: 12px 14px;
+    font-family:'Nunito', sans-serif;
+    font-size: 14.5px;
+    color: var(--ink);
+    outline:none;
+    transition: border-color .15s ease;
+  }
+  .panel textarea{ min-height: 90px; resize: vertical; }
+  .panel textarea:focus, .panel input[type="text"]:focus{ border-color: var(--pink); }
+  .panel label{ display:block; font-size: 12px; font-weight:700; color: var(--muted); margin: 0 2px 6px; }
+  .panel-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:8px; }
+  .panel-actions button{
+    border:none; border-radius: 12px; padding: 8px 14px;
+    font-family:'Nunito', sans-serif; font-weight:700; font-size: 13.5px; cursor:pointer;
+  }
+  .panel-cancel{ background:transparent; color:#B8A6C4; }
+  .panel-confirm{ background: var(--pink); color:#fff; }
+  .panel-confirm:hover{ background: var(--pink-dark); }
+
+  .items{ margin:0; padding:0; min-height: 40px; }
+
+  .list-toolbar{ display:flex; align-items:center; justify-content:space-between; margin: 2px 2px 12px; }
+  .list-toolbar-label{ font-family:'Baloo 2', sans-serif; font-weight:600; font-size:13px; color: var(--muted); }
+  .edit-toggle{
+    display:flex; align-items:center; gap:6px;
+    border:2px solid var(--line); background:#FFFDF6; color: var(--ink);
+    border-radius:999px; padding:6px 13px;
+    font-family:'Nunito', sans-serif; font-weight:700; font-size:12.5px; cursor:pointer;
+    transition: background .15s ease, border-color .15s ease, color .15s ease;
+  }
+  .edit-toggle svg{ width:13px; height:13px; flex:0 0 auto; }
+  .edit-toggle:hover{ border-color: var(--pink); }
+  .edit-toggle.active{ background: var(--mint); border-color: var(--mint); color:#fff; }
+
+  .cat-zone{
+    border-radius: 18px;
+    padding: 2px 6px;
+    margin: 0 -6px;
+    transition: background-color .16s ease, box-shadow .16s ease;
+  }
+  .cat-empty-hint{
+    font-size:12px; color:#C7B9D1;
+    border:2px dashed var(--line); border-radius:12px;
+    padding: 12px 8px; text-align:center;
+    margin: 2px 0 10px;
+  }
+
+  .drag-handle{
+    display:none; flex:0 0 auto;
+    width:16px; height:24px;
+    align-items:center; justify-content:center;
+    color:#D9C9E3; cursor:grab;
+  }
+  .drag-handle svg{ width:12px; height:16px; }
+  body.edit-mode .drag-handle{ display:flex; }
+  body.edit-mode .item{ cursor:grab; }
+  .item.dragging{ opacity:0.35; }
+
+  .item-text-input{
+    width:100%;
+    border:2px solid var(--line); border-radius:10px;
+    padding: 6px 9px;
+    font-family:'Nunito', sans-serif; font-weight:600; font-size:15px;
+    color: var(--ink); background:#FFFDF6; outline:none;
+  }
+  .item-text-input:focus{ border-color: var(--pink); }
+
+  .cat-header{ display:flex; align-items:center; gap:8px; margin: 18px 0 6px; }
+  .cat-header:first-child{ margin-top: 4px; }
+  .cat-dot{ width:9px; height:9px; border-radius:50%; flex:0 0 auto; }
+  .cat-label{ font-family:'Baloo 2', sans-serif; font-weight:600; font-size: 14px; color: var(--ink); }
+  .cat-count{ font-size: 12px; color:#C7B9D1; margin-left:2px; }
+
+  .item{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding: 10px 2px;
+    border-bottom: 1px dashed var(--line);
+  }
+  .item:last-child{ border-bottom:none; }
+
+  .box{
+    flex: 0 0 auto;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    border: 2.2px solid var(--pink);
+    background: #fff;
+    cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition: background .18s ease, border-color .18s ease, transform .12s ease;
+  }
+  .box:active{ transform: scale(0.85); }
+  .box.checked{ background: var(--pink); border-color: var(--pink); }
+  .box svg{
+    width:16px; height:16px;
+    stroke:#fff; stroke-width:3; fill:none;
+    stroke-linecap:round; stroke-linejoin:round;
+    stroke-dasharray: 20; stroke-dashoffset: 20;
+    transition: stroke-dashoffset .3s ease .05s;
+  }
+  .box.checked svg{ stroke-dashoffset: 0; }
+
+  .item-text{
+    flex:1 1 auto;
+    font-size: 15.5px;
+    font-weight:600;
+    color: var(--ink);
+    cursor:pointer;
+    position:relative;
+    min-width:64px;
+    word-break: break-word;
+    transition: color .3s ease .1s;
+  }
+  .item.checked .item-text{ color: var(--muted); }
+
+  /* --- Stift-Durchstreich-Animation --- */
+  .item-text .scribble{
+    position:absolute; left:0; right:0; top:50%;
+    width:100%; height:16px;
+    transform: translateY(-50%);
+    pointer-events:none;
+    opacity:0;
+    transition: opacity .15s ease;
+    overflow:visible;
+  }
+  .item.checked .item-text .scribble{ opacity:1; }
+  .item-text .scribble svg{ width:100%; height:16px; overflow:visible; }
+  .item-text .scribble path{
+    stroke: var(--pink-dark); stroke-width: 2.4; fill:none; stroke-linecap:round;
+    stroke-dasharray: 240; stroke-dashoffset: 240;
+    transition: stroke-dashoffset .5s cubic-bezier(.4,0,.2,1);
+  }
+  .item.checked .item-text .scribble path{ stroke-dashoffset: 0; }
+  .pen-tip{
+    position:absolute; top:50%; left:0%;
+    width:20px; height:20px;
+    transform: translate(-40%,-62%) rotate(-30deg);
+    opacity:0;
+    transition: left .5s cubic-bezier(.4,0,.2,1), opacity .15s ease;
+  }
+  .item.checked .pen-tip{ left:100%; opacity:1; }
+  .item.checked.pen-settled .pen-tip{ opacity:0; transition: left .5s cubic-bezier(.4,0,.2,1), opacity .35s ease; }
+
+  .qty-select{
+    appearance:none; -webkit-appearance:none; -moz-appearance:none;
+    flex:0 0 auto;
+    max-width:104px;
+    border: 2px solid var(--line);
+    background:
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'><path d='M1 1 L5 5 L9 1' stroke='%23B8A6C4' stroke-width='1.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>") no-repeat right 9px center;
+    background-size: 10px 6px;
+    background-color:#FFFDF6;
+    border-radius: 12px;
+    padding: 7px 22px 7px 10px;
+    font-family:'Nunito', sans-serif;
+    font-weight:700;
+    font-size: 12px;
+    color: var(--muted);
+    cursor:pointer;
+    transition: border-color .15s ease, color .15s ease;
+  }
+  .qty-select:focus{ outline:none; border-color: var(--pink); color: var(--ink); }
+  .item.checked .qty-select{ color:#D8CCE0; border-color:#F5ECD4; }
+
+  .del{
+    flex:0 0 auto; width:24px; height:24px;
+    border:none; background:transparent; cursor:pointer;
+    color: #D9C9E3; font-size: 17px;
+    border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    transition: color .15s ease, background .15s ease;
+  }
+  .del:hover{ color: var(--pink-dark); background: #FFF0F3; }
+
+  @keyframes dupPulse{
+    0%,100%{ background: transparent; }
+    35%{ background: #FFE3EA; }
+  }
+  .item.dup-flash{ animation: dupPulse .9s ease; border-radius: 10px; }
+
+  .empty{ text-align:center; padding: 26px 10px 10px; color: #B8A6C4; font-size: 14px; }
+  .empty svg{ width:40px; height:40px; margin-bottom:8px; opacity:.8; }
+
+  .footer{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-top: 12px; padding-top: 12px;
+    border-top: 2px dashed var(--line);
+    font-size: 13px; color: #A896B5;
+  }
+  .footer button{
+    border:none; background:none; color: var(--pink-dark);
+    font-weight:700; font-size:13px; cursor:pointer; padding:4px 0;
+  }
+  .footer button:disabled{ color: #DCCFE4; cursor:default; }
+
+  .actions-row{ display:flex; gap:10px; margin-top: 14px; }
+  .save-trigger{
+    flex:1; width:100%;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    background: #FFFDF6; border: 2px dashed var(--line); border-radius:16px;
+    padding: 11px 14px;
+    font-family:'Nunito', sans-serif; font-weight:700; font-size:14px;
+    color: var(--pink-dark); cursor:pointer;
+    transition: border-color .15s ease, background .15s ease, color .15s ease;
+    white-space:nowrap;
+  }
+  .save-trigger:hover{ border-color: var(--pink); }
+  .save-trigger svg{ width:16px; height:16px; flex:0 0 auto; }
+  .share-trigger{ color: var(--mint-dark); }
+  .share-trigger:hover{ border-color: var(--mint); }
+  .share-trigger.copied{ background: #E8FBF4; border-color: var(--mint); color: var(--mint-dark); }
+
+  .saved-card{
+    background: var(--card); border-radius: 24px; padding: 18px 20px 6px;
+    margin-top: 16px; box-shadow: 0 14px 32px -22px rgba(75,53,80,0.3);
+  }
+  .saved-title{
+    display:flex; align-items:center; gap:8px;
+    font-family:'Baloo 2', sans-serif; font-weight:600; font-size: 15px;
+    color: var(--ink); margin-bottom: 4px;
+  }
+  .saved-title svg{ width:18px; height:18px; }
+  .saved-item{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding: 12px 0; border-bottom: 1px dashed var(--line); }
+  .saved-item:last-child{ border-bottom:none; }
+  .saved-info{ display:flex; flex-direction:column; gap:2px; min-width:0; }
+  .saved-name{ font-family:'Baloo 2', sans-serif; font-weight:600; font-size:15px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .saved-meta{ font-size:12px; color:#C7B9D1; }
+  .saved-actions{ display:flex; align-items:center; gap:6px; flex:0 0 auto; }
+  .saved-load{ border:none; background: var(--mint); color:#fff; font-weight:700; font-size:12.5px; padding:7px 12px; border-radius:12px; cursor:pointer; transition: background .15s ease; }
+  .saved-load:hover{ background: var(--mint-dark); }
+  .saved-del{ border:none; background:transparent; color:#D9C9E3; font-size:17px; width:26px; height:26px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; transition: color .15s ease, background .15s ease; }
+  .saved-del:hover{ color: var(--pink-dark); background:#FFF0F3; }
+
+  @media (prefers-reduced-motion: reduce){
+    .box svg, .item-text .scribble path, .pen-tip, .item-text{ transition:none !important; }
+  }
+
+  .box:focus-visible, .add-btn:focus-visible, .del:focus-visible,
+  .item-text:focus-visible, .link-btn:focus-visible, .qty-select:focus-visible,
+  .panel-confirm:focus-visible, .panel-cancel:focus-visible,
+  .save-trigger:focus-visible, .saved-load:focus-visible, .saved-del:focus-visible{
+    outline: 3px solid var(--mint-dark);
+    outline-offset: 2px;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hero">
+    <svg viewBox="0 0 64 64" fill="none">
+      <path d="M16 22 L20 12 M48 22 L44 12" stroke="#4B3550" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M12 22 H52 L47 50 C46.5 52.5 45 54 42 54 H22 C19 54 17.5 52.5 17 50 Z"
+            fill="#7BD8C0" stroke="#4B3550" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M20 30 L22 46 M32 30 L32 46 M44 30 L42 46" stroke="#4B3550" stroke-width="2" stroke-linecap="round" opacity="0.55"/>
+      <circle cx="26" cy="18" r="3.4" fill="#FF7F93" stroke="#4B3550" stroke-width="2"/>
+      <circle cx="38" cy="18" r="3.4" fill="#FFE29A" stroke="#4B3550" stroke-width="2"/>
+    </svg>
+    <h1>Meine Einkaufsliste</h1>
+    <p class="sub">wird automatisch nach Supermarkt-Gängen sortiert</p>
+  </div>
+
+  <div class="card">
+    <div class="add-row">
+      <input id="input" type="text" placeholder="Milch, Eier, Butter …" autocomplete="off" maxlength="60">
+      <button class="add-btn" id="addBtn" aria-label="Hinzufügen">+</button>
+    </div>
+    <div class="paste-hint">
+      <span>Tipp: du kannst eine ganze Liste einfügen —</span>
+      <button class="link-btn" id="bulkToggle" type="button">Liste einfügen</button>
+    </div>
+
+    <div class="panel" id="bulkBox">
+      <textarea id="bulkInput" placeholder="z. B.&#10;Tomaten&#10;Bananen&#10;Brot&#10;Milch"></textarea>
+      <div class="panel-actions">
+        <button type="button" class="panel-cancel" id="bulkCancel">Abbrechen</button>
+        <button type="button" class="panel-confirm" id="bulkAdd">Alle hinzufügen</button>
+      </div>
+    </div>
+
+    <div class="list-toolbar">
+      <span class="list-toolbar-label">Deine Liste</span>
+      <button class="edit-toggle" id="editToggle" type="button" aria-pressed="false">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M11 2 L14 5 L5 14 L2 14 L2 11 Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+        <span id="editToggleLabel">Bearbeiten</span>
+      </button>
+    </div>
+
+    <div class="items" id="list"></div>
+    <div class="empty" id="emptyState" style="display:none;">
+      <svg viewBox="0 0 40 40" fill="none">
+        <path d="M8 12 H32 L28 30 C27.6 31.6 26.5 32.5 24.8 32.5 H15.2 C13.5 32.5 12.4 31.6 12 30 Z" stroke="#C7B4D3" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M6 12 H8 M32 12 H34" stroke="#C7B4D3" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <div>Noch nichts auf der Liste — trag oben dein erstes Ding ein oder füg eine ganze Liste ein.</div>
+    </div>
+
+    <div class="footer">
+      <span id="counter">0 von 0 erledigt</span>
+      <button id="clearBtn">Erledigte löschen</button>
+    </div>
+
+    <div class="actions-row">
+      <button class="save-trigger" id="saveToggle" type="button">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M3 2 H13 V14 L8 11 L3 14 Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        <span>Liste speichern</span>
+      </button>
+      <button class="save-trigger share-trigger" id="shareBtn" type="button">
+        <svg viewBox="0 0 16 16" fill="none"><circle cx="12.5" cy="3.5" r="2" stroke="currentColor" stroke-width="1.6"/><circle cx="3.5" cy="8" r="2" stroke="currentColor" stroke-width="1.6"/><circle cx="12.5" cy="12.5" r="2" stroke="currentColor" stroke-width="1.6"/><path d="M5.3 7 L10.8 4.2 M5.3 9 L10.8 11.7" stroke="currentColor" stroke-width="1.6"/></svg>
+        <span id="shareLabel">Teilen</span>
+      </button>
+    </div>
+
+    <div class="panel" id="saveBox">
+      <label for="saveName">Speichern unter</label>
+      <input type="text" id="saveName" placeholder="z. B. Lasagne" maxlength="50">
+      <div class="panel-actions">
+        <button type="button" class="panel-cancel" id="saveCancel">Abbrechen</button>
+        <button type="button" class="panel-confirm" id="saveConfirm">Speichern</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="saved-card" id="savedCard" style="display:none;">
+    <div class="saved-title">
+      <svg viewBox="0 0 16 16" fill="none"><path d="M3 2 H13 V14 L8 11 L3 14 Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+      Gespeicherte Listen
+    </div>
+    <div id="savedList"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const CURRENT_KEY = 'einkaufsliste:items';
+  const SAVED_KEY = 'einkaufsliste:saved';
+  const DEFAULT_QTY = '1 Stk/Pck';
+  const QTY_OPTIONS = ['1 Stk/Pck','2 Stk/Pck','3 Stk/Pck','4 Stk/Pck','6er Pack','12er Pack','250 g','500 g','1 kg','1 L','2 L'];
+
+  // Reihenfolge = Supermarkt-Laufweg
+  const CATEGORIES = [
+    { key:'gemuese',   label:'Gemüse',              color:'#7BD8C0' },
+    { key:'obst',      label:'Obst',                color:'#FFB347' },
+    { key:'backwaren', label:'Backwaren',            color:'#E8B86D' },
+    { key:'milch',     label:'Milchprodukte & Eier', color:'#BFD7EA' },
+    { key:'kaese',     label:'Käse',                 color:'#F4D35E' },
+    { key:'fleisch',   label:'Fleisch & Wurst',      color:'#C1666B' },
+    { key:'fisch',     label:'Fisch',                color:'#8FC1E3' },
+    { key:'tiefkuehl', label:'Tiefkühl',             color:'#A8DADC' },
+    { key:'trocken',   label:'Trockenwaren & Konserven', color:'#CBB994' },
+    { key:'gewuerze',  label:'Gewürze & Saucen',     color:'#D4A5A5' },
+    { key:'getraenke', label:'Getränke',             color:'#9AD1D4' },
+    { key:'suesses',   label:'Süßes & Snacks',       color:'#F6BD60' },
+    { key:'drogerie',  label:'Drogerie & Haushalt',  color:'#B8A9C9' },
+    { key:'sonstiges', label:'Sonstiges',            color:'#C9B8D6' },
+  ];
+
+  const KEYWORDS = {
+    gemuese: ['tomate','gurke','paprika','zwiebel','knoblauch','kartoffel','möhre','moehre','karotte','salat','spinat','brokkoli','blumenkohl','zucchini','aubergine','pilz','champignon','lauch','porree','sellerie','rettich','radieschen','kohl','rosenkohl','spargel','mais','erbsen','bohnen','kürbis','kuerbis','rote bete','rote beete','ingwer','chili','avocado','kräuter','kraeuter','petersilie','basilikum','schnittlauch','dill','minze','rucola','feldsalat','eisbergsalat'],
+    obst: ['apfel','äpfel','aepfel','banane','orange','mandarine','clementine','zitrone','limette','birne','traube','weintraube','erdbeere','himbeere','blaubeere','heidelbeere','kirsche','pfirsich','nektarine','aprikose','pflaume','melone','wassermelone','honigmelone','ananas','mango','kiwi','granatapfel','feige','dattel','litschi'],
+    backwaren: ['brot','brötchen','broetchen','baguette','toast','croissant','brezel','kuchen','torte','zwieback','waffel','pfannkuchen','ciabatta','vollkornbrot','mischbrot','laugenbrezel','stuten','rosinenbrot'],
+    milch: ['milch','joghurt','quark','sahne','schlagsahne','butter','margarine','ei','eier','buttermilch','kefir','pudding','frischkäse','frischkaese','mascarpone','creme fraiche','skyr'],
+    kaese: ['käse','kaese','gouda','emmentaler','mozzarella','parmesan','feta','camembert','brie','cheddar','harzer','tilsiter'],
+    fleisch: ['fleisch','hähnchen','haehnchen','huhn','hühnchen','huehnchen','pute','rind','rindfleisch','schwein','schweinefleisch','hackfleisch','hack','wurst','schinken','salami','speck','bacon','wiener','bratwurst','leberwurst','mett','steak','geflügel','gefluegel'],
+    fisch: ['fisch','lachs','thunfisch','garnelen','shrimps','forelle','kabeljau','hering','matjes','scholle','sushi'],
+    tiefkuehl: ['tiefkühl','tiefkuehl','tiefgefroren','tk-','speiseeis','eis am stiel','pommes','fischstäbchen','fischstaebchen','tk gemüse','tk gemuese'],
+    trocken: ['nudeln','spaghetti','reis','mehl','zucker','öl','oel','olivenöl','olivenoel','essig','konserve','dose','linsen','kichererbsen','haferflocken','müsli','muesli','cornflakes','honig','marmelade','nutella','nüsse','nuesse','mandeln','walnüsse','walnuesse','cashew','erdnüsse','erdnuesse','passata','brühe','bruehe','couscous','polenta','tütensuppe','tuetensuppe'],
+    gewuerze: ['salz','pfeffer','gewürz','gewuerz','senf','ketchup','mayo','mayonnaise','sojasauce','sauce','dressing','curry','paprikapulver','currypulver'],
+    getraenke: ['wasser','mineralwasser','saft','orangensaft','apfelsaft','cola','limonade','bier','wein','sekt','kaffee','tee','smoothie','energy drink','sprudel'],
+    suesses: ['schokolade','keks','chips','gummibärchen','gummibaerchen','bonbon','süßigkeiten','suessigkeiten','snack','popcorn','riegel','eis'],
+    drogerie: ['klopapier','toilettenpapier','küchenrolle','kuechenrolle','seife','shampoo','duschgel','zahnpasta','waschmittel','spülmittel','spuelmittel','müllbeutel','muellbeutel','batterien','putzmittel','taschentücher','taschentuecher'],
+  };
+
+  function categorize(text){
+    const t = text.toLowerCase();
+    for(const cat of CATEGORIES){
+      const words = KEYWORDS[cat.key];
+      if(!words) continue;
+      for(const w of words){ if(t.includes(w)) return cat.key; }
+    }
+    return 'sonstiges';
+  }
+
+  function getISOWeek(date){
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = (d.getUTCDay() + 6) % 7;
+    d.setUTCDate(d.getUTCDate() - dayNum + 3);
+    const firstThursday = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+    const firstDayNum = (firstThursday.getUTCDay() + 6) % 7;
+    firstThursday.setUTCDate(firstThursday.getUTCDate() - firstDayNum + 3);
+    return 1 + Math.round((d - firstThursday) / (7 * 24 * 3600 * 1000));
+  }
+  function defaultListName(){ return 'Wocheneinkauf KW ' + getISOWeek(new Date()); }
+
+  function normText(t){ return t.trim().toLowerCase().replace(/\s+/g,' '); }
+
+  const listEl = document.getElementById('list');
+  const emptyEl = document.getElementById('emptyState');
+  const counterEl = document.getElementById('counter');
+  const clearBtn = document.getElementById('clearBtn');
+  const input = document.getElementById('input');
+  const addBtn = document.getElementById('addBtn');
+
+  const bulkToggle = document.getElementById('bulkToggle');
+  const bulkBox = document.getElementById('bulkBox');
+  const bulkInput = document.getElementById('bulkInput');
+  const bulkAdd = document.getElementById('bulkAdd');
+  const bulkCancel = document.getElementById('bulkCancel');
+
+  const saveToggle = document.getElementById('saveToggle');
+  const saveBox = document.getElementById('saveBox');
+  const saveName = document.getElementById('saveName');
+  const saveConfirm = document.getElementById('saveConfirm');
+  const saveCancel = document.getElementById('saveCancel');
+
+  const savedCard = document.getElementById('savedCard');
+  const savedListEl = document.getElementById('savedList');
+
+  const editToggle = document.getElementById('editToggle');
+  const editToggleLabel = document.getElementById('editToggleLabel');
+
+  let editMode = false;
+  let draggedId = null;
+
+  function hexToRgba(hex, alpha){
+    const h = hex.replace('#','');
+    const r = parseInt(h.substring(0,2),16);
+    const g = parseInt(h.substring(2,4),16);
+    const b = parseInt(h.substring(4,6),16);
+    return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+  }
+
+  function clearAllZoneHighlights(){
+    listEl.querySelectorAll('.cat-zone').forEach(z=>{ z.style.background=''; z.style.boxShadow=''; });
+  }
+
+  const shareBtn = document.getElementById('shareBtn');
+  const shareLabel = document.getElementById('shareLabel');
+
+  let items = [];
+  let savedLists = [];
+  let idCounter = 0;
+
+  function scribblePath(){
+    return 'M2 8 C 20 3, 40 13, 60 7 C 80 2, 100 12, 120 7 C 140 2, 160 12, 180 7 C 195 3, 205 10, 220 7';
+  }
+
+  function dedupeItems(arr){
+    const seen = new Set();
+    const out = [];
+    arr.forEach(it=>{
+      const key = normText(it.text);
+      if(seen.has(key)) return;
+      seen.add(key);
+      out.push(it);
+    });
+    return out;
+  }
+
+  function parseBulkText(text){
+    return text
+      .split(/\r?\n/)
+      .flatMap(line => line.split(','))
+      .map(s => s.replace(/^[\s\-\*•\u2022\d]+[\.\)]?\s*/,'').trim())
+      .filter(Boolean);
+  }
+
+  async function loadCurrent(){
+    try{
+      const res = await window.storage.get(CURRENT_KEY);
+      if(res && res.value){
+        const parsed = JSON.parse(res.value);
+        items = dedupeItems(Array.isArray(parsed) ? parsed : []).map(i=>({
+          id: i.id, text: i.text, done: !!i.done,
+          cat: i.cat || categorize(i.text), qty: i.qty || DEFAULT_QTY,
+          catPinned: !!i.catPinned
+        }));
+        idCounter = items.reduce((m,i)=>Math.max(m, i.id||0), 0) + 1;
+      }
+    }catch(e){ items = []; }
+  }
+
+  async function loadSaved(){
+    try{
+      const res = await window.storage.get(SAVED_KEY);
+      if(res && res.value){
+        const parsed = JSON.parse(res.value);
+        savedLists = Array.isArray(parsed) ? parsed : [];
+      }
+    }catch(e){ savedLists = []; }
+  }
+
+  async function saveCurrent(){
+    try{ await window.storage.set(CURRENT_KEY, JSON.stringify(items)); }
+    catch(e){ console.error('Speichern der Liste fehlgeschlagen', e); }
+  }
+  async function saveSavedLists(){
+    try{ await window.storage.set(SAVED_KEY, JSON.stringify(savedLists)); }
+    catch(e){ console.error('Speichern der Vorlagen fehlgeschlagen', e); }
+  }
+
+  function findExisting(text){
+    const key = normText(text);
+    return items.find(i=>normText(i.text) === key);
+  }
+
+  function flashById(id){
+    const li = listEl.querySelector('[data-id="'+id+'"]');
+    if(!li) return;
+    li.classList.remove('dup-flash');
+    void li.offsetWidth;
+    li.classList.add('dup-flash');
+    setTimeout(()=>li.classList.remove('dup-flash'), 900);
+  }
+
+  function flashExisting(text){
+    const existing = findExisting(text);
+    if(!existing) return;
+    flashById(existing.id);
+  }
+
+  // gibt true zurück, wenn wirklich ein neues Item hinzugefügt wurde
+  function addItem(text){
+    const trimmed = text.trim();
+    if(!trimmed) return false;
+    if(findExisting(trimmed)){
+      flashExisting(trimmed);
+      return false;
+    }
+    items.push({ id: idCounter++, text: trimmed, done:false, cat: categorize(trimmed), qty: DEFAULT_QTY });
+    return true;
+  }
+
+  function addMany(texts){
+    let added = false;
+    texts.forEach(t=>{ if(addItem(t)) added = true; });
+    if(added){ saveCurrent(); render(); }
+  }
+
+  function toggleItem(id){
+    const it = items.find(i=>i.id===id);
+    if(!it) return;
+    it.done = !it.done;
+    saveCurrent();
+
+    const li = listEl.querySelector('[data-id="'+id+'"]');
+    if(!li) return;
+    const box = li.querySelector('.box');
+    clearTimeout(li._penTimer);
+
+    if(it.done){
+      li.classList.remove('pen-settled');
+      li.classList.add('checked');
+      if(box){ box.classList.add('checked'); box.setAttribute('aria-checked','true'); }
+      li._penTimer = setTimeout(()=> li.classList.add('pen-settled'), 520);
+    }else{
+      li.classList.remove('checked');
+      li.classList.remove('pen-settled');
+      if(box){ box.classList.remove('checked'); box.setAttribute('aria-checked','false'); }
+    }
+    updateFooter();
+  }
+
+  function updateQty(id, qty){
+    const it = items.find(i=>i.id===id);
+    if(it){ it.qty = qty; saveCurrent(); }
+  }
+
+  function moveItemToCategory(id, newCat){
+    const it = items.find(i=>i.id===id);
+    if(!it || it.cat === newCat) return;
+    it.cat = newCat;
+    it.catPinned = true;
+    saveCurrent(); render();
+  }
+
+  function renameItem(id, newTextRaw){
+    const it = items.find(i=>i.id===id);
+    if(!it) return;
+    const newText = newTextRaw.trim();
+    if(!newText || normText(newText) === normText(it.text)){ render(); return; }
+    const dup = items.find(i=>i.id!==id && normText(i.text)===normText(newText));
+    if(dup){ flashById(dup.id); render(); return; }
+    it.text = newText;
+    if(!it.catPinned) it.cat = categorize(newText);
+    saveCurrent(); render();
+  }
+
+  function deleteItem(id){
+    items = items.filter(i=>i.id!==id);
+    saveCurrent(); render();
+  }
+
+  function clearDone(){
+    items = items.filter(i=>!i.done);
+    saveCurrent(); render();
+  }
+
+  function updateFooter(){
+    const doneCount = items.filter(i=>i.done).length;
+    counterEl.textContent = doneCount + ' von ' + items.length + ' erledigt';
+    clearBtn.disabled = doneCount === 0;
+  }
+
+  function buildQtySelect(it){
+    const select = document.createElement('select');
+    select.className = 'qty-select';
+    select.setAttribute('aria-label', 'Menge für ' + it.text);
+    let opts = QTY_OPTIONS.slice();
+    if(!opts.includes(it.qty)) opts.unshift(it.qty);
+    opts.forEach(opt=>{
+      const o = document.createElement('option');
+      o.value = opt; o.textContent = opt;
+      if(opt === it.qty) o.selected = true;
+      select.appendChild(o);
+    });
+    select.addEventListener('click', e=>e.stopPropagation());
+    select.addEventListener('change', ()=> updateQty(it.id, select.value));
+    return select;
+  }
+
+  function render(){
+    listEl.innerHTML = '';
+    const hasAnyItems = items.length > 0;
+    emptyEl.style.display = hasAnyItems ? 'none' : 'block';
+
+    CATEGORIES.forEach(cat=>{
+      const group = items
+        .filter(i=>i.cat===cat.key)
+        .sort((a,b)=>a.text.localeCompare(b.text,'de'));
+
+      // Im Bearbeiten-Modus bleiben auch leere Kategorien als Ablage-Ziel sichtbar
+      if(group.length === 0 && !editMode) return;
+
+      const zone = document.createElement('div');
+      zone.className = 'cat-zone';
+      zone.dataset.cat = cat.key;
+
+      const header = document.createElement('div');
+      header.className = 'cat-header';
+      header.innerHTML =
+        '<span class="cat-dot" style="background:' + cat.color + '"></span>' +
+        '<span class="cat-label">' + cat.label + '</span>' +
+        '<span class="cat-count">' + group.length + '</span>';
+      zone.appendChild(header);
+
+      group.forEach(it=>{
+        const li = document.createElement('div');
+        li.className = 'item' + (it.done ? ' checked pen-settled' : '');
+        li.dataset.id = it.id;
+        li.draggable = editMode;
+
+        li.addEventListener('dragstart', (e)=>{
+          if(!editMode){ e.preventDefault(); return; }
+          draggedId = it.id;
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', String(it.id));
+          li.classList.add('dragging');
+        });
+        li.addEventListener('dragend', ()=>{
+          li.classList.remove('dragging');
+          clearAllZoneHighlights();
+          draggedId = null;
+        });
+
+        const handle = document.createElement('div');
+        handle.className = 'drag-handle';
+        handle.setAttribute('aria-hidden','true');
+        handle.innerHTML = '<svg viewBox="0 0 12 16"><circle cx="3" cy="2.5" r="1.4" fill="currentColor"/><circle cx="3" cy="8" r="1.4" fill="currentColor"/><circle cx="3" cy="13.5" r="1.4" fill="currentColor"/><circle cx="9" cy="2.5" r="1.4" fill="currentColor"/><circle cx="9" cy="8" r="1.4" fill="currentColor"/><circle cx="9" cy="13.5" r="1.4" fill="currentColor"/></svg>';
+
+        const box = document.createElement('div');
+        box.className = 'box' + (it.done ? ' checked' : '');
+        box.setAttribute('role','checkbox');
+        box.setAttribute('aria-checked', it.done ? 'true' : 'false');
+        box.tabIndex = 0;
+        box.innerHTML = '<svg viewBox="0 0 16 16"><path d="M3 8.5 L6.5 12 L13 4"/></svg>';
+        box.addEventListener('click', ()=>toggleItem(it.id));
+        box.addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggleItem(it.id); }});
+
+        const textWrap = document.createElement('div');
+        textWrap.className = 'item-text';
+
+        if(editMode){
+          const editInput = document.createElement('input');
+          editInput.type = 'text';
+          editInput.className = 'item-text-input';
+          editInput.value = it.text;
+          editInput.draggable = false;
+          editInput.maxLength = 60;
+          editInput.addEventListener('click', e=>e.stopPropagation());
+          editInput.addEventListener('mousedown', e=>e.stopPropagation());
+          editInput.addEventListener('keydown', e=>{
+            if(e.key === 'Enter'){ e.preventDefault(); editInput.blur(); }
+          });
+          editInput.addEventListener('blur', ()=> renameItem(it.id, editInput.value));
+          textWrap.appendChild(editInput);
+        }else{
+          textWrap.tabIndex = 0;
+          textWrap.addEventListener('click', ()=>toggleItem(it.id));
+          textWrap.addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggleItem(it.id); }});
+
+          const label = document.createElement('span');
+          label.textContent = it.text;
+          textWrap.appendChild(label);
+
+          const scribble = document.createElement('span');
+          scribble.className = 'scribble';
+          scribble.innerHTML = '<svg viewBox="0 0 220 16" preserveAspectRatio="none"><path d="' + scribblePath() + '"/></svg>';
+          textWrap.appendChild(scribble);
+
+          const pen = document.createElement('span');
+          pen.className = 'pen-tip';
+          pen.innerHTML = '<svg viewBox="0 0 20 20"><rect x="2" y="8" width="12" height="4" rx="1.4" fill="#E85C77"/><path d="M13 6.6 L18 10 L13 13.4 Z" fill="#4B3550"/></svg>';
+          textWrap.appendChild(pen);
+        }
+
+        const qtySelect = buildQtySelect(it);
+
+        const del = document.createElement('button');
+        del.className = 'del';
+        del.setAttribute('aria-label','Löschen: ' + it.text);
+        del.textContent = '×';
+        del.addEventListener('click', ()=>deleteItem(it.id));
+
+        li.appendChild(handle);
+        li.appendChild(box);
+        li.appendChild(textWrap);
+        li.appendChild(qtySelect);
+        li.appendChild(del);
+        zone.appendChild(li);
+      });
+
+      if(group.length === 0 && editMode){
+        const hint = document.createElement('div');
+        hint.className = 'cat-empty-hint';
+        hint.textContent = 'Leer — Artikel hierhin ziehen';
+        zone.appendChild(hint);
+      }
+
+      zone.addEventListener('dragover', (e)=>{
+        if(!editMode || draggedId === null) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        zone.style.background = hexToRgba(cat.color, 0.16);
+        zone.style.boxShadow = 'inset 0 0 0 2px ' + hexToRgba(cat.color, 0.55);
+      });
+      zone.addEventListener('dragleave', (e)=>{
+        if(!zone.contains(e.relatedTarget)){
+          zone.style.background = ''; zone.style.boxShadow = '';
+        }
+      });
+      zone.addEventListener('drop', (e)=>{
+        if(!editMode) return;
+        e.preventDefault();
+        zone.style.background = ''; zone.style.boxShadow = '';
+        const id = Number(e.dataTransfer.getData('text/plain'));
+        moveItemToCategory(id, cat.key);
+      });
+
+      listEl.appendChild(zone);
+    });
+
+    updateFooter();
+  }
+
+  function renderSaved(){
+    savedListEl.innerHTML = '';
+    if(savedLists.length === 0){ savedCard.style.display = 'none'; return; }
+    savedCard.style.display = 'block';
+
+    const sorted = [...savedLists].sort((a,b)=> b.savedAt.localeCompare(a.savedAt));
+    sorted.forEach(entry=>{
+      const row = document.createElement('div');
+      row.className = 'saved-item';
+
+      const info = document.createElement('div');
+      info.className = 'saved-info';
+      const name = document.createElement('div');
+      name.className = 'saved-name';
+      name.textContent = entry.name;
+      const meta = document.createElement('div');
+      meta.className = 'saved-meta';
+      const dateStr = new Date(entry.savedAt).toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric' });
+      meta.textContent = entry.items.length + ' Artikel · ' + dateStr;
+      info.appendChild(name); info.appendChild(meta);
+
+      const actions = document.createElement('div');
+      actions.className = 'saved-actions';
+
+      const loadBtn = document.createElement('button');
+      loadBtn.className = 'saved-load';
+      loadBtn.textContent = 'Laden';
+      loadBtn.addEventListener('click', ()=>loadSavedList(entry.id));
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'saved-del';
+      delBtn.setAttribute('aria-label', '"' + entry.name + '" löschen');
+      delBtn.textContent = '×';
+      delBtn.addEventListener('click', ()=>deleteSavedList(entry.id));
+
+      actions.appendChild(loadBtn); actions.appendChild(delBtn);
+      row.appendChild(info); row.appendChild(actions);
+      savedListEl.appendChild(row);
+    });
+  }
+
+  function loadSavedList(id){
+    const entry = savedLists.find(e=>e.id===id);
+    if(!entry) return;
+    const ok = window.confirm('Aktuelle Liste durch „' + entry.name + '“ ersetzen?');
+    if(!ok) return;
+    const mapped = entry.items.map(i=>({
+      id: idCounter++, text: i.text, done:false,
+      cat: i.cat || categorize(i.text), qty: i.qty || DEFAULT_QTY
+    }));
+    items = dedupeItems(mapped);
+    saveCurrent(); render();
+  }
+
+  function deleteSavedList(id){
+    const entry = savedLists.find(e=>e.id===id);
+    if(!entry) return;
+    const ok = window.confirm('„' + entry.name + '“ löschen?');
+    if(!ok) return;
+    savedLists = savedLists.filter(e=>e.id!==id);
+    saveSavedLists(); renderSaved();
+  }
+
+  function buildShareText(){
+    if(items.length === 0) return 'Meine Einkaufsliste ist noch leer.';
+    const lines = ['Einkaufsliste:'];
+    CATEGORIES.forEach(cat=>{
+      const group = items.filter(i=>i.cat===cat.key).sort((a,b)=>a.text.localeCompare(b.text,'de'));
+      if(group.length === 0) return;
+      lines.push('', cat.label + ':');
+      group.forEach(it=>{
+        lines.push((it.done ? '☑' : '☐') + ' ' + it.text + ' – ' + it.qty);
+      });
+    });
+    return lines.join('\n');
+  }
+
+  function flashShareLabel(text, revertAfter){
+    const prev = shareLabel.textContent;
+    shareBtn.classList.add('copied');
+    shareLabel.textContent = text;
+    setTimeout(()=>{
+      shareBtn.classList.remove('copied');
+      shareLabel.textContent = prev;
+    }, revertAfter || 1600);
+  }
+
+  function fallbackCopy(text){
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    try{
+      document.execCommand('copy');
+      flashShareLabel('Kopiert ✓');
+    }catch(e){
+      flashShareLabel('Kopieren fehlgeschlagen');
+    }
+    document.body.removeChild(ta);
+  }
+
+  function copyToClipboard(text){
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(()=>flashShareLabel('Kopiert ✓')).catch(()=>fallbackCopy(text));
+    }else{
+      fallbackCopy(text);
+    }
+  }
+
+  async function shareList(){
+    const text = buildShareText();
+    if(navigator.share){
+      try{
+        await navigator.share({ title: 'Einkaufsliste', text: text });
+        return;
+      }catch(e){
+        if(e && e.name === 'AbortError') return;
+        // Web Share fehlgeschlagen -> auf Zwischenablage ausweichen
+      }
+    }
+    copyToClipboard(text);
+  }
+
+  shareBtn.addEventListener('click', shareList);
+
+  addBtn.addEventListener('click', ()=>{
+    if(addItem(input.value)){ saveCurrent(); render(); }
+    input.value = ''; input.focus();
+  });
+  input.addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter'){
+      if(addItem(input.value)){ saveCurrent(); render(); }
+      input.value = '';
+    }
+  });
+  input.addEventListener('paste', (e)=>{
+    const clip = (e.clipboardData || window.clipboardData);
+    if(!clip) return;
+    const text = clip.getData('text');
+    if(!text) return;
+    const looksLikeList = text.includes('\n') || text.split(',').length > 2;
+    if(looksLikeList){
+      e.preventDefault();
+      addMany(parseBulkText(text));
+      input.value = '';
+    }
+  });
+
+  bulkToggle.addEventListener('click', ()=>{
+    saveBox.classList.remove('open');
+    bulkBox.classList.toggle('open');
+    if(bulkBox.classList.contains('open')) bulkInput.focus();
+  });
+  bulkCancel.addEventListener('click', ()=>{ bulkInput.value=''; bulkBox.classList.remove('open'); });
+  bulkAdd.addEventListener('click', ()=>{
+    const texts = parseBulkText(bulkInput.value);
+    if(texts.length) addMany(texts);
+    bulkInput.value = ''; bulkBox.classList.remove('open');
+  });
+
+  saveToggle.addEventListener('click', ()=>{
+    bulkBox.classList.remove('open');
+    saveBox.classList.toggle('open');
+    if(saveBox.classList.contains('open')){
+      saveName.value = defaultListName();
+      saveName.focus(); saveName.select();
+    }
+  });
+  saveCancel.addEventListener('click', ()=> saveBox.classList.remove('open'));
+  saveConfirm.addEventListener('click', ()=>{
+    const name = saveName.value.trim() || defaultListName();
+    const entry = {
+      id: Date.now(), name: name, savedAt: new Date().toISOString(),
+      items: items.map(i=>({ text: i.text, cat: i.cat, qty: i.qty }))
+    };
+    savedLists.push(entry);
+    saveSavedLists(); renderSaved();
+    saveBox.classList.remove('open');
+  });
+  saveName.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); saveConfirm.click(); } });
+
+  editToggle.addEventListener('click', ()=>{
+    editMode = !editMode;
+    document.body.classList.toggle('edit-mode', editMode);
+    editToggle.classList.toggle('active', editMode);
+    editToggle.setAttribute('aria-pressed', String(editMode));
+    editToggleLabel.textContent = editMode ? 'Fertig' : 'Bearbeiten';
+    render();
+  });
+
+  clearBtn.addEventListener('click', clearDone);
+
+  (async function init(){
+    await Promise.all([loadCurrent(), loadSaved()]);
+    render();
+    renderSaved();
+  })();
+
+  if('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')){
+    window.addEventListener('load', ()=>{
+      navigator.serviceWorker.register('sw.js').catch(()=>{ /* Offline-Modus optional, App funktioniert trotzdem */ });
+    });
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "name": "Meine Einkaufsliste",
+  "short_name": "Einkaufsliste",
+  "description": "Süße Einkaufsliste mit automatischer Sortierung nach Supermarkt-Gängen",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#FFF4D6",
+  "theme_color": "#FF7F93",
+  "orientation": "portrait",
+  "lang": "de",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
