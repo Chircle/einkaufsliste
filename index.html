@@ -61,6 +61,36 @@
     overflow:hidden;
   }
   .add-row{ display:flex; gap:10px; }
+
+  .import-banner{
+    display:none;
+    align-items:center;
+    gap:12px;
+    flex-wrap:wrap;
+    background: linear-gradient(135deg, #E8FBF4, #FFF0F3);
+    border: 2px solid var(--mint);
+    border-radius: 18px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+  }
+  .import-icon{
+    width:36px; height:36px; flex:0 0 auto;
+    border-radius:50%;
+    background:#fff;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .import-icon svg{ width:20px; height:20px; }
+  .import-text{ flex:1 1 160px; display:flex; flex-direction:column; gap:1px; min-width:0; }
+  .import-text strong{ font-family:'Baloo 2', sans-serif; font-size:14.5px; color: var(--ink); }
+  .import-text span{ font-size:12.5px; color: var(--ink-soft, #8C7B98); }
+  .import-actions{ display:flex; gap:8px; flex:0 0 auto; }
+  .import-actions button{
+    border:none; border-radius: 12px; padding: 8px 14px;
+    font-family:'Nunito', sans-serif; font-weight:700; font-size: 13px; cursor:pointer;
+  }
+  .import-accept{ background: var(--mint); color:#fff; }
+  .import-accept:hover{ background: var(--mint-dark); }
+  .import-dismiss{ background:transparent; color:#B8A6C4; }
   .add-row input{
     flex:1;
     border: 2px solid var(--line);
@@ -372,6 +402,20 @@
   </div>
 
   <div class="card">
+    <div class="import-banner" id="importBanner">
+      <div class="import-icon">
+        <svg viewBox="0 0 20 20" fill="none"><path d="M3 7 L10 3 L17 7 V15 L10 19 L3 15 Z" stroke="#4FBBA0" stroke-width="1.6" stroke-linejoin="round"/><path d="M3 7 L10 11 L17 7 M10 11 V19" stroke="#4FBBA0" stroke-width="1.6" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="import-text">
+        <strong>Jemand hat eine Liste geteilt</strong>
+        <span id="importCount"></span>
+      </div>
+      <div class="import-actions">
+        <button class="import-dismiss" id="importDismiss" type="button">Verwerfen</button>
+        <button class="import-accept" id="importAccept" type="button">Übernehmen</button>
+      </div>
+    </div>
+
     <div class="add-row">
       <input id="input" type="text" placeholder="Milch, Eier, Butter …" autocomplete="off" maxlength="60">
       <button class="add-btn" id="addBtn" aria-label="Hinzufügen">+</button>
@@ -547,6 +591,12 @@
 
   const shareBtn = document.getElementById('shareBtn');
   const shareLabel = document.getElementById('shareLabel');
+
+  const importBanner = document.getElementById('importBanner');
+  const importCountEl = document.getElementById('importCount');
+  const importAccept = document.getElementById('importAccept');
+  const importDismiss = document.getElementById('importDismiss');
+  let pendingImport = null;
 
   let items = [];
   let savedLists = [];
@@ -985,18 +1035,34 @@
     }
   }
 
+  function b64EncodeUnicode(str){
+    return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) => String.fromCharCode('0x' + p1)));
+  }
+  function b64DecodeUnicode(str){
+    return decodeURIComponent(atob(str).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+  }
+
+  function buildShareUrl(){
+    if(items.length === 0) return location.origin + location.pathname;
+    const payload = items.map(i=>({ t: i.text, q: i.qty, c: i.cat }));
+    const encoded = b64EncodeUnicode(JSON.stringify(payload));
+    const base = location.origin + location.pathname;
+    return base + '#list=' + encodeURIComponent(encoded);
+  }
+
   async function shareList(){
     const text = buildShareText();
+    const url = buildShareUrl();
     if(navigator.share){
       try{
-        await navigator.share({ title: 'Einkaufsliste', text: text });
+        await navigator.share({ title: 'Einkaufsliste', text: text, url: url });
         return;
       }catch(e){
         if(e && e.name === 'AbortError') return;
         // Web Share fehlgeschlagen -> auf Zwischenablage ausweichen
       }
     }
-    copyToClipboard(text);
+    copyToClipboard(text + '\n\n📲 Liste direkt öffnen:\n' + url);
   }
 
   shareBtn.addEventListener('click', shareList);
@@ -1068,10 +1134,58 @@
 
   clearBtn.addEventListener('click', clearDone);
 
+  function checkIncomingShare(){
+    const hash = location.hash;
+    if(!hash.startsWith('#list=')) return;
+
+    try{
+      const raw = decodeURIComponent(hash.slice(6));
+      const decoded = JSON.parse(b64DecodeUnicode(raw));
+      if(Array.isArray(decoded) && decoded.length){
+        pendingImport = decoded
+          .filter(i => i && i.t)
+          .map(i => ({
+            text: String(i.t).slice(0,60),
+            qty: i.q || DEFAULT_QTY,
+            cat: i.c || categorize(String(i.t))
+          }));
+        if(pendingImport.length){
+          importCountEl.textContent = pendingImport.length + (pendingImport.length === 1 ? ' Artikel' : ' Artikel');
+          importBanner.style.display = 'flex';
+        }
+      }
+    }catch(e){
+      console.error('Geteilte Liste konnte nicht gelesen werden', e);
+    }
+    history.replaceState(null, '', location.pathname + location.search);
+  }
+
+  importAccept.addEventListener('click', ()=>{
+    if(!pendingImport){ importBanner.style.display = 'none'; return; }
+    let addedAny = false;
+    pendingImport.forEach(p=>{
+      if(addItem(p.text)){
+        const it = items[items.length - 1];
+        it.qty = p.qty;
+        it.cat = p.cat;
+        it.catPinned = true;
+        addedAny = true;
+      }
+    });
+    if(addedAny){ saveCurrent(); render(); }
+    importBanner.style.display = 'none';
+    pendingImport = null;
+  });
+  importDismiss.addEventListener('click', ()=>{
+    importBanner.style.display = 'none';
+    pendingImport = null;
+  });
+
   (async function init(){
     await Promise.all([loadCurrent(), loadSaved()]);
     render();
     renderSaved();
+    checkIncomingShare();
   })();
 
   if('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')){
