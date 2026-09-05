@@ -27,61 +27,8 @@ Einfach `index.html` öffnen (lokal oder gehostet) – keine Installation, kein 
 
 Die App funktioniert danach auch offline – die Liste selbst wird sowieso lokal gespeichert.
 
-## Auf GitHub Pages hosten
-
-**Variante A – mit GitHub Actions (empfohlen, im Repo bereits enthalten):**
-
-1. Alle Dateien inkl. `.github/workflows/deploy.yml` in den Repo-Root pushen
-2. **Settings → Pages → Source:** „GitHub Actions" auswählen
-3. Bei jedem Push auf `main` deployt die Action automatisch – Fortschritt siehst du im „Actions"-Tab
-4. Seite ist danach live unter `https://dein-name.github.io/dein-repo/`
-
-**Variante B – ohne Workflow, klassisch:**
-
-1. Alle Dateien (inkl. `.nojekyll`) in den Repo-Root pushen
-2. **Settings → Pages → Source:** „Deploy from a branch" → Branch `main`, Ordner `/ (root)`
-3. Seite ist nach ca. 1 Minute live
-
-## Live-Sync einrichten (optional, für den Teilen-Button)
-
-Ohne diesen Schritt funktioniert die App komplett normal – nur „Teilen" liefert dann nur eine Text-Kopie statt eines echten Live-Links. Mit Firebase Realtime Database (Google, kostenloses Kontingent) dauert die Einrichtung ca. 10 Minuten. Die Zugangsdaten landen dabei **nicht im Repo/Git-Verlauf**, sondern als verschlüsselte GitHub Secrets – der Deploy-Workflow baut `firebase-config.js` bei jedem Push automatisch daraus zusammen.
-
-1. [console.firebase.google.com](https://console.firebase.google.com) → **„Projekt hinzufügen"** (Google-Analytics-Frage kannst du mit „Nein" beantworten)
-2. Im Projekt: **Build → Realtime Database → „Datenbank erstellen"** (Standort egal, Startmodus „Testmodus" reicht fürs Erste)
-3. **Projekteinstellungen** (Zahnrad oben links) → runterscrollen zu **„Meine Apps"** → Web-App hinzufügen (`</>`-Symbol) → Namen vergeben → **Firebase Hosting NICHT aktivieren** (brauchst du nicht, du hostest ja schon über GitHub Pages)
-4. Firebase zeigt dir jetzt einen `firebaseConfig`-Block mit 7 Werten – die brauchst du im nächsten Schritt
-5. Im GitHub-Repo: **Settings → Secrets and variables → Actions → „New repository secret"** – für jeden der 7 Werte einen eigenen Secret anlegen, mit **exakt diesen Namen**:
-
-   | Secret-Name | Wert aus `firebaseConfig` |
-   |---|---|
-   | `FIREBASE_API_KEY` | `apiKey` |
-   | `FIREBASE_AUTH_DOMAIN` | `authDomain` |
-   | `FIREBASE_DATABASE_URL` | `databaseURL` |
-   | `FIREBASE_PROJECT_ID` | `projectId` |
-   | `FIREBASE_STORAGE_BUCKET` | `storageBucket` |
-   | `FIREBASE_MESSAGING_SENDER_ID` | `messagingSenderId` |
-   | `FIREBASE_APP_ID` | `appId` |
-
-6. Unter **Realtime Database → Regeln** in Firebase folgendes eintragen und veröffentlichen:
-
-   ```json
-   {
-     "rules": {
-       "lists": {
-         "$listId": {
-           ".read": true,
-           ".write": true
-         }
-       }
-     }
-   }
-   ```
-
-7. Irgendeine Kleinigkeit committen & pushen (oder im Actions-Tab **„Re-run all jobs"**), damit der Workflow einmal mit den neuen Secrets durchläuft
-
 **Wichtig zu wissen:**
-- Diese Regeln sind bewusst offen – jede und jeder mit dem (langen, zufälligen) Freigabe-Code kann diese eine Liste lesen und bearbeiten, ganz ohne Login. Genau wie bei einem geteilten Google-Docs-Link: ohne den Code kommt niemand ran, aber es gibt keine Zugriffskontrolle im Hintergrund. Für eine private Einkaufsliste mit Familie/WG völlig ausreichend – für sensible Daten wäre das zu wenig.
-- Die Secrets halten die Werte aus deinem **Git-Verlauf** raus. Im ausgelieferten JavaScript (das jede Besucherin im Browser lädt) stehen sie trotzdem – das lässt sich bei einer rein clientseitigen App nicht vermeiden. Das ist auch unkritisch: Firebase-Web-Configs sind grundsätzlich öffentlich sichtbar, jede Website die Firebase nutzt zeigt sie im Quellcode. Die eigentliche Absicherung passiert über die Regeln oben, nicht über Geheimhaltung der Config selbst.
+Für eine private Einkaufsliste mit Familie/WG völlig ausreichend .
 
 ## Technik
 
