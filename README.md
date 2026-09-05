@@ -11,7 +11,7 @@ Eine süße, installierbare Einkaufslisten-App. Läuft komplett im Browser, spei
 - **Stift-Animation** beim Abhaken – die Linie zeichnet sich sichtbar von links nach rechts
 - **Bearbeiten-Modus**: Artikel umbenennen und per Drag & Drop in eine andere Kategorie ziehen
 - **Listen speichern** unter einem Namen (z. B. ein Gericht) oder standardmäßig als „Wocheneinkauf KW …"
-- **Teilen-Button** – teilt einen Link, der die komplette Liste enthält. Öffnet die Empfängerin/der Empfänger den Link, bekommt sie/er eine „Übernehmen"-Karte angezeigt und kann die Artikel mit einem Klick in die eigene Liste holen (kein Server nötig, die Daten stecken direkt im Link)
+- **Teilen-Button mit Live-Sync (optional, siehe unten)** – teilt einen kurzen Link (kein Datenwust in der URL). Wer den Link öffnet, kann live beitreten: Häkchen, neue Artikel, Umbenennungen – alles synct in Echtzeit zwischen allen, die den Link geöffnet haben. Ohne Firebase-Einrichtung teilt der Button stattdessen nur eine reine Text-Kopie (kein Link, kein Sync)
 - **Installierbar als PWA** – Icon auf dem Startbildschirm, läuft offline dank Service Worker
 
 ## Nutzung
@@ -42,9 +42,50 @@ Die App funktioniert danach auch offline – die Liste selbst wird sowieso lokal
 2. **Settings → Pages → Source:** „Deploy from a branch" → Branch `main`, Ordner `/ (root)`
 3. Seite ist nach ca. 1 Minute live
 
+## Live-Sync einrichten (optional, für den Teilen-Button)
+
+Ohne diesen Schritt funktioniert die App komplett normal – nur „Teilen" liefert dann nur eine Text-Kopie statt eines echten Live-Links. Mit Firebase Realtime Database (Google, kostenloses Kontingent) dauert die Einrichtung ca. 10 Minuten. Die Zugangsdaten landen dabei **nicht im Repo/Git-Verlauf**, sondern als verschlüsselte GitHub Secrets – der Deploy-Workflow baut `firebase-config.js` bei jedem Push automatisch daraus zusammen.
+
+1. [console.firebase.google.com](https://console.firebase.google.com) → **„Projekt hinzufügen"** (Google-Analytics-Frage kannst du mit „Nein" beantworten)
+2. Im Projekt: **Build → Realtime Database → „Datenbank erstellen"** (Standort egal, Startmodus „Testmodus" reicht fürs Erste)
+3. **Projekteinstellungen** (Zahnrad oben links) → runterscrollen zu **„Meine Apps"** → Web-App hinzufügen (`</>`-Symbol) → Namen vergeben → **Firebase Hosting NICHT aktivieren** (brauchst du nicht, du hostest ja schon über GitHub Pages)
+4. Firebase zeigt dir jetzt einen `firebaseConfig`-Block mit 7 Werten – die brauchst du im nächsten Schritt
+5. Im GitHub-Repo: **Settings → Secrets and variables → Actions → „New repository secret"** – für jeden der 7 Werte einen eigenen Secret anlegen, mit **exakt diesen Namen**:
+
+   | Secret-Name | Wert aus `firebaseConfig` |
+   |---|---|
+   | `FIREBASE_API_KEY` | `apiKey` |
+   | `FIREBASE_AUTH_DOMAIN` | `authDomain` |
+   | `FIREBASE_DATABASE_URL` | `databaseURL` |
+   | `FIREBASE_PROJECT_ID` | `projectId` |
+   | `FIREBASE_STORAGE_BUCKET` | `storageBucket` |
+   | `FIREBASE_MESSAGING_SENDER_ID` | `messagingSenderId` |
+   | `FIREBASE_APP_ID` | `appId` |
+
+6. Unter **Realtime Database → Regeln** in Firebase folgendes eintragen und veröffentlichen:
+
+   ```json
+   {
+     "rules": {
+       "lists": {
+         "$listId": {
+           ".read": true,
+           ".write": true
+         }
+       }
+     }
+   }
+   ```
+
+7. Irgendeine Kleinigkeit committen & pushen (oder im Actions-Tab **„Re-run all jobs"**), damit der Workflow einmal mit den neuen Secrets durchläuft
+
+**Wichtig zu wissen:**
+- Diese Regeln sind bewusst offen – jede und jeder mit dem (langen, zufälligen) Freigabe-Code kann diese eine Liste lesen und bearbeiten, ganz ohne Login. Genau wie bei einem geteilten Google-Docs-Link: ohne den Code kommt niemand ran, aber es gibt keine Zugriffskontrolle im Hintergrund. Für eine private Einkaufsliste mit Familie/WG völlig ausreichend – für sensible Daten wäre das zu wenig.
+- Die Secrets halten die Werte aus deinem **Git-Verlauf** raus. Im ausgelieferten JavaScript (das jede Besucherin im Browser lädt) stehen sie trotzdem – das lässt sich bei einer rein clientseitigen App nicht vermeiden. Das ist auch unkritisch: Firebase-Web-Configs sind grundsätzlich öffentlich sichtbar, jede Website die Firebase nutzt zeigt sie im Quellcode. Die eigentliche Absicherung passiert über die Regeln oben, nicht über Geheimhaltung der Config selbst.
+
 ## Technik
 
-Ein einziges selbstständiges HTML-File (Vanilla JS, kein Framework, keine Abhängigkeiten außer Google Fonts). Daten werden über die `window.storage`-API persistiert.
+Vanilla JS, kein Framework, keine Build-Schritte. Die eigene Liste wird über `localStorage` gespeichert (funktioniert überall, auch offline). Für Live-Sync beim Teilen wird optional Firebase Realtime Database angebunden – ohne Konfiguration läuft die App trotzdem vollständig lokal.
 
 ## Projektstruktur
 
@@ -52,9 +93,9 @@ Ein einziges selbstständiges HTML-File (Vanilla JS, kein Framework, keine Abhä
 ├── index.html            # Die App selbst
 ├── manifest.json         # Web App Manifest (PWA-Metadaten, Icons, Farben)
 ├── sw.js                 # Service Worker (Offline-Caching)
-├── icon-192.png          # App-Icon 192×192
-├── icon-512.png          # App-Icon 512×512
-├── apple-touch-icon.png  # App-Icon fürs iPhone
+├── firebase-config.js    # Platzhalter im Repo, wird beim Deploy aus GitHub Secrets generiert
+├── favicon.png           # Icon fürs Browser-Tab
+├── app-icon.png          # App-Icon fürs Handy (PWA-Installation)
 ├── .github/
 │   └── workflows/
 │       └── deploy.yml     # GitHub Actions Workflow für automatisches Deployment

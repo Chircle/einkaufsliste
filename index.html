@@ -161,7 +161,16 @@
   .items{ margin:0; padding:0; min-height: 40px; }
 
   .list-toolbar{ display:flex; align-items:center; justify-content:space-between; margin: 2px 2px 12px; }
-  .list-toolbar-label{ font-family:'Baloo 2', sans-serif; font-weight:600; font-size:13px; color: var(--muted); }
+  .list-toolbar-label{ font-family:'Baloo 2', sans-serif; font-weight:600; font-size:13px; color: var(--muted); display:flex; align-items:center; gap:8px; }
+  .live-pill{
+    display:none; align-items:center; gap:5px;
+    border:none; background:#E8FBF4; color: var(--mint-dark);
+    border-radius:999px; padding:4px 10px 4px 8px;
+    font-family:'Nunito', sans-serif; font-weight:700; font-size:11px;
+    cursor:pointer;
+  }
+  .live-dot{ width:6px; height:6px; border-radius:50%; background: var(--mint-dark); animation: livePulse 1.6s ease-in-out infinite; }
+  @keyframes livePulse{ 0%,100%{ opacity:1; } 50%{ opacity:.35; } }
   .edit-toggle{
     display:flex; align-items:center; gap:6px;
     border:2px solid var(--line); background:#FFFDF6; color: var(--ink);
@@ -407,7 +416,7 @@
         <svg viewBox="0 0 20 20" fill="none"><path d="M3 7 L10 3 L17 7 V15 L10 19 L3 15 Z" stroke="#4FBBA0" stroke-width="1.6" stroke-linejoin="round"/><path d="M3 7 L10 11 L17 7 M10 11 V19" stroke="#4FBBA0" stroke-width="1.6" stroke-linejoin="round"/></svg>
       </div>
       <div class="import-text">
-        <strong>Jemand hat eine Liste geteilt</strong>
+        <strong>Jemand hat eine Live-Liste geteilt</strong>
         <span id="importCount"></span>
       </div>
       <div class="import-actions">
@@ -434,7 +443,12 @@
     </div>
 
     <div class="list-toolbar">
-      <span class="list-toolbar-label">Deine Liste</span>
+      <span class="list-toolbar-label">
+        Deine Liste
+        <button class="live-pill" id="liveIndicator" type="button" style="display:none;" title="Live-Freigabe beenden">
+          <span class="live-dot"></span> Live geteilt
+        </button>
+      </span>
       <button class="edit-toggle" id="editToggle" type="button" aria-pressed="false">
         <svg viewBox="0 0 16 16" fill="none"><path d="M11 2 L14 5 L5 14 L2 14 L2 11 Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
         <span id="editToggleLabel">Bearbeiten</span>
@@ -485,10 +499,14 @@
   </div>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="firebase-config.js"></script>
 <script>
 (function(){
   const CURRENT_KEY = 'einkaufsliste:items';
   const SAVED_KEY = 'einkaufsliste:saved';
+  const SHARE_ID_KEY = 'einkaufsliste:shareId';
   const DEFAULT_QTY = '1 Stk/Pck';
   const QTY_OPTIONS = ['1 Stk/Pck','2 Stk/Pck','3 Stk/Pck','4 Stk/Pck','6er Pack','12er Pack','250 g','500 g','1 kg','1 L','2 L'];
 
@@ -591,6 +609,7 @@
 
   const shareBtn = document.getElementById('shareBtn');
   const shareLabel = document.getElementById('shareLabel');
+  const liveIndicator = document.getElementById('liveIndicator');
 
   const importBanner = document.getElementById('importBanner');
   const importCountEl = document.getElementById('importCount');
@@ -626,11 +645,76 @@
       .filter(Boolean);
   }
 
+  // ---- Firebase (optional) für Live-Sync beim Teilen ----
+  let db = null;
+  let shareId = null;
+  let shareRef = null;
+  try{
+    const cfg = window.FIREBASE_CONFIG;
+    if(cfg && cfg.apiKey && cfg.databaseURL && window.firebase){
+      firebase.initializeApp(cfg);
+      db = firebase.database();
+    }
+  }catch(e){ console.warn('Firebase-Live-Sync nicht verfügbar', e); db = null; }
+
+  function generateShareId(){
+    return (Math.random().toString(36).slice(2,7) + Math.random().toString(36).slice(2,5)).toUpperCase();
+  }
+
+  function normalizeRemoteItem(i){
+    return {
+      id: typeof i.id === 'number' ? i.id : Date.now() + Math.random(),
+      text: String(i.text || '').slice(0,60),
+      done: !!i.done,
+      cat: i.cat || categorize(i.text || ''),
+      qty: i.qty || DEFAULT_QTY,
+      catPinned: !!i.catPinned
+    };
+  }
+
+  function pushToShare(){
+    if(!db || !shareId) return;
+    db.ref('lists/' + shareId).set({
+      items: items.map(i=>({ id:i.id, text:i.text, done:i.done, cat:i.cat, qty:i.qty, catPinned: !!i.catPinned })),
+      updatedAt: Date.now()
+    });
+  }
+
+  function subscribeToShare(id){
+    if(!db || !id) return;
+    if(shareRef) shareRef.off();
+    shareId = id;
+    localStorage.setItem(SHARE_ID_KEY, id);
+    shareRef = db.ref('lists/' + id);
+    shareRef.on('value', (snap)=>{
+      const val = snap.val();
+      if(val && Array.isArray(val.items)){
+        items = dedupeItems(val.items).map(normalizeRemoteItem);
+        idCounter = items.reduce((m,i)=>Math.max(m, i.id||0), 0) + 1;
+        try{ localStorage.setItem(CURRENT_KEY, JSON.stringify(items)); }catch(e){}
+        render();
+      }
+    });
+    renderLiveIndicator();
+  }
+
+  function stopSharing(){
+    if(shareRef) shareRef.off();
+    shareRef = null; shareId = null;
+    localStorage.removeItem(SHARE_ID_KEY);
+    renderLiveIndicator();
+  }
+
+  function renderLiveIndicator(){
+    if(!liveIndicator) return;
+    liveIndicator.style.display = shareId ? 'inline-flex' : 'none';
+  }
+
   async function loadCurrent(){
     try{
-      const res = await window.storage.get(CURRENT_KEY);
-      if(res && res.value){
-        const parsed = JSON.parse(res.value);
+      const raw = localStorage.getItem(CURRENT_KEY);
+      if(raw){
+        const parsed = JSON.parse(raw);
         items = dedupeItems(Array.isArray(parsed) ? parsed : []).map(i=>({
           id: i.id, text: i.text, done: !!i.done,
           cat: i.cat || categorize(i.text), qty: i.qty || DEFAULT_QTY,
@@ -643,20 +727,21 @@
 
   async function loadSaved(){
     try{
-      const res = await window.storage.get(SAVED_KEY);
-      if(res && res.value){
-        const parsed = JSON.parse(res.value);
+      const raw = localStorage.getItem(SAVED_KEY);
+      if(raw){
+        const parsed = JSON.parse(raw);
         savedLists = Array.isArray(parsed) ? parsed : [];
       }
     }catch(e){ savedLists = []; }
   }
 
   async function saveCurrent(){
-    try{ await window.storage.set(CURRENT_KEY, JSON.stringify(items)); }
+    try{ localStorage.setItem(CURRENT_KEY, JSON.stringify(items)); }
     catch(e){ console.error('Speichern der Liste fehlgeschlagen', e); }
+    if(db && shareId) pushToShare();
   }
   async function saveSavedLists(){
-    try{ await window.storage.set(SAVED_KEY, JSON.stringify(savedLists)); }
+    try{ localStorage.setItem(SAVED_KEY, JSON.stringify(savedLists)); }
     catch(e){ console.error('Speichern der Vorlagen fehlgeschlagen', e); }
   }
 
@@ -1035,37 +1120,41 @@
     }
   }
 
-  function b64EncodeUnicode(str){
-    return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) => String.fromCharCode('0x' + p1)));
-  }
-  function b64DecodeUnicode(str){
-    return decodeURIComponent(atob(str).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
-  }
-
-  function buildShareUrl(){
-    if(items.length === 0) return location.origin + location.pathname;
-    const payload = items.map(i=>({ t: i.text, q: i.qty, c: i.cat }));
-    const encoded = b64EncodeUnicode(JSON.stringify(payload));
-    const base = location.origin + location.pathname;
-    return base + '#list=' + encodeURIComponent(encoded);
-  }
-
   async function shareList(){
-    const text = buildShareText();
-    const url = buildShareUrl();
-    if(navigator.share){
-      try{
-        await navigator.share({ title: 'Einkaufsliste', text: text, url: url });
-        return;
-      }catch(e){
-        if(e && e.name === 'AbortError') return;
-        // Web Share fehlgeschlagen -> auf Zwischenablage ausweichen
+    if(items.length === 0){ flashShareLabel('Liste ist leer'); return; }
+
+    if(db){
+      // Live-Sync verfügbar: kurzer Code statt Daten im Link, alle Beteiligten sehen Änderungen sofort
+      if(!shareId) shareId = generateShareId();
+      subscribeToShare(shareId);
+      pushToShare();
+      const url = location.origin + location.pathname + '#share=' + shareId;
+      const text = 'Meine Einkaufsliste – live & gemeinsam bearbeitbar:';
+      if(navigator.share){
+        try{ await navigator.share({ title: 'Einkaufsliste', text: text, url: url }); return; }
+        catch(e){ if(e && e.name === 'AbortError') return; }
       }
+      copyToClipboard(text + '\n' + url);
+    }else{
+      // Kein Firebase konfiguriert: nur Text teilen, kein Link, kein Live-Sync
+      const text = buildShareText();
+      if(navigator.share){
+        try{ await navigator.share({ title: 'Einkaufsliste', text: text }); return; }
+        catch(e){ if(e && e.name === 'AbortError') return; }
+      }
+      copyToClipboard(text);
+      flashShareLabel('Ohne Link kopiert', 2200);
     }
-    copyToClipboard(text + '\n\n📲 Liste direkt öffnen:\n' + url);
   }
 
   shareBtn.addEventListener('click', shareList);
+  if(liveIndicator){
+    liveIndicator.addEventListener('click', ()=>{
+      if(window.confirm('Live-Freigabe für diese Liste beenden? Andere verlieren dann die Verbindung, deine Artikel bleiben bei dir erhalten.')){
+        stopSharing();
+      }
+    });
+  }
 
   addBtn.addEventListener('click', ()=>{
     if(addItem(input.value)){ saveCurrent(); render(); }
@@ -1134,58 +1223,63 @@
 
   clearBtn.addEventListener('click', clearDone);
 
+  let pendingShareId = null;
+
   function checkIncomingShare(){
     const hash = location.hash;
-    if(!hash.startsWith('#list=')) return;
-
-    try{
-      const raw = decodeURIComponent(hash.slice(6));
-      const decoded = JSON.parse(b64DecodeUnicode(raw));
-      if(Array.isArray(decoded) && decoded.length){
-        pendingImport = decoded
-          .filter(i => i && i.t)
-          .map(i => ({
-            text: String(i.t).slice(0,60),
-            qty: i.q || DEFAULT_QTY,
-            cat: i.c || categorize(String(i.t))
-          }));
-        if(pendingImport.length){
-          importCountEl.textContent = pendingImport.length + (pendingImport.length === 1 ? ' Artikel' : ' Artikel');
-          importBanner.style.display = 'flex';
-        }
-      }
-    }catch(e){
-      console.error('Geteilte Liste konnte nicht gelesen werden', e);
-    }
+    if(!hash.startsWith('#share=')) return;
+    const id = hash.slice(7).trim();
     history.replaceState(null, '', location.pathname + location.search);
+    if(!id) return;
+
+    if(!db){
+      importCountEl.textContent = 'Live-Sync ist in dieser Installation nicht eingerichtet (siehe README)';
+      importAccept.style.display = 'none';
+      importBanner.style.display = 'flex';
+      return;
+    }
+
+    pendingShareId = id;
+    db.ref('lists/' + id).once('value').then(snap=>{
+      const val = snap.val();
+      const count = (val && Array.isArray(val.items)) ? val.items.length : 0;
+      importCountEl.textContent = count + (count === 1 ? ' Artikel' : ' Artikel') + ' · live & gemeinsam bearbeitbar';
+      importBanner.style.display = 'flex';
+    }).catch(()=>{
+      importCountEl.textContent = 'Liste konnte nicht geladen werden (Link ungültig oder abgelaufen)';
+      importAccept.style.display = 'none';
+      importBanner.style.display = 'flex';
+    });
   }
 
   importAccept.addEventListener('click', ()=>{
-    if(!pendingImport){ importBanner.style.display = 'none'; return; }
-    let addedAny = false;
-    pendingImport.forEach(p=>{
-      if(addItem(p.text)){
-        const it = items[items.length - 1];
-        it.qty = p.qty;
-        it.cat = p.cat;
-        it.catPinned = true;
-        addedAny = true;
-      }
-    });
-    if(addedAny){ saveCurrent(); render(); }
+    if(pendingShareId){
+      const proceed = items.length === 0 || window.confirm('Deine aktuelle Liste (' + items.length + ' Artikel) wird durch die Live-Liste ersetzt. Fortfahren?');
+      if(proceed) subscribeToShare(pendingShareId);
+    }
     importBanner.style.display = 'none';
-    pendingImport = null;
+    pendingShareId = null;
   });
   importDismiss.addEventListener('click', ()=>{
     importBanner.style.display = 'none';
-    pendingImport = null;
+    importAccept.style.display = '';
+    pendingShareId = null;
   });
 
   (async function init(){
     await Promise.all([loadCurrent(), loadSaved()]);
     render();
     renderSaved();
+
+    const hadIncomingShareLink = location.hash.startsWith('#share=');
     checkIncomingShare();
+
+    // Falls dieses Gerät schon vorher eine eigene Live-Freigabe aktiv hatte und der
+    // aktuelle Link keine andere fremde Liste bringt, automatisch wieder verbinden.
+    if(!hadIncomingShareLink && db){
+      const existing = localStorage.getItem(SHARE_ID_KEY);
+      if(existing) subscribeToShare(existing);
+    }
   })();
 
   if('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')){
